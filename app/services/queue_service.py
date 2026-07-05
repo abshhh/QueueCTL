@@ -1,20 +1,27 @@
 import uuid
 
+from app.core.settings import Settings
 from app.db.database import SessionLocal
 from app.db.repository import JobRepository
 
 
 class QueueService:
 
+    def __init__(self):
+        self.settings = Settings()
+
     def enqueue(
         self,
         command: str,
         job_id: str | None = None,
-        max_retries: int = 3,
+        max_retries: int | None = None,
     ):
 
         if job_id is None:
             job_id = str(uuid.uuid4())
+
+        if max_retries is None:
+            max_retries = self.settings.get("max_retries")
 
         db = SessionLocal()
 
@@ -23,9 +30,9 @@ class QueueService:
             repository = JobRepository(db)
 
             return repository.create(
-                job_id,
-                command,
-                max_retries,
+                job_id=job_id,
+                command=command,
+                max_retries=max_retries,
             )
 
         finally:

@@ -20,10 +20,10 @@ def add(
         "--id",
         help="Optional job ID",
     ),
-    max_retries: int = typer.Option(
-        3,
+    max_retries: int | None = typer.Option(
+        None,
         "--max-retries",
-        help="Maximum retry attempts",
+        help="Maximum retry attempts (defaults to config value)",
     ),
 ):
     """
@@ -33,6 +33,7 @@ def add(
     service = QueueService()
 
     try:
+
         job = service.enqueue(
             command=command,
             job_id=job_id,
@@ -44,7 +45,9 @@ def add(
         )
 
     except Exception as e:
+
         console.print(
             f"[bold red]Error:[/bold red] {e}"
         )
+
         raise typer.Exit(code=1)

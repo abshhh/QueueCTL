@@ -72,7 +72,9 @@ class WorkerService:
                     "exit_code": result.returncode,
                 }
 
-            delay = 2 ** job.attempts
+            settings = Settings()
+
+            delay = settings.get("backoff_base") ** job.attempts
 
             job.state = "pending"
             job.next_run_at = datetime.utcnow() + timedelta(seconds=delay)
@@ -128,6 +130,10 @@ class WorkerService:
                         f"after {result['attempts']} attempts."
                     )
 
-            stop_event.wait(1)
+            from app.core.settings import Settings
+
+            settings = Settings()
+
+            stop_event.wait(settings.get("poll_interval"))
 
         print("Worker shutting down.")
