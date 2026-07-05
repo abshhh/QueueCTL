@@ -1,5 +1,6 @@
 import subprocess
 import time
+from threading import Event
 
 from app.db.database import SessionLocal
 from app.db.repository import JobRepository
@@ -11,10 +12,6 @@ class WorkerService:
     """
 
     def process_next_job(self):
-        """
-        Process the next available pending job.
-        """
-
         db = SessionLocal()
 
         try:
@@ -25,11 +22,9 @@ class WorkerService:
             if job is None:
                 return None
 
-            # Mark as processing
             job.state = "processing"
             repository.save(job)
 
-            # Execute command
             result = subprocess.run(
                 job.command,
                 shell=True,
@@ -42,7 +37,6 @@ class WorkerService:
 
             if result.returncode == 0:
                 job.state = "completed"
-
             else:
                 job.attempts += 1
 
@@ -64,28 +58,25 @@ class WorkerService:
         finally:
             db.close()
 
-    def start(self):
+    def start(self, stop_event: Event):
         """
-        Continuously poll the queue.
+        Continuously poll the queue until shutdown.
         """
 
-        print("Worker started. Press Ctrl+C to stop.\n")
+        print("Worker started.")
 
-        try:
-            while True:
+        while not stop_event.is_set():
 
-                result = self.process_next_job()
+            result = self.process_next_job()
 
-                if result:
+            if result:
 
-                    print(
-                        f"[Worker] {result['id']} "
-                        f"-> {result['state']} "
-                        f"(exit={result['exit_code']})"
-                    )
+                print(
+                    f"[Worker] {result['id']} "
+                    f"-> {result['state']} "
+                    f"(exit={result['exit_code']})"
+                )
 
-                time.sleep(1)
+            stop_event.wait(1)
 
-        except KeyboardInterrupt:
-
-            print("\nGracefully shutting down worker...")
+        print("Worker shutting down.")
