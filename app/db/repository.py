@@ -58,7 +58,23 @@ class JobRepository:
         Return all jobs.
         """
 
-        return self.db.query(Job).all()
+        return (
+            self.db.query(Job)
+            .order_by(Job.created_at)
+            .all()
+        )
+
+    def get_next_pending(self) -> Job | None:
+        """
+        Return the oldest pending job.
+        """
+
+        return (
+            self.db.query(Job)
+            .filter(Job.state == "pending")
+            .order_by(Job.created_at)
+            .first()
+        )
 
     def save(self, job: Job) -> Job:
         """
@@ -68,6 +84,20 @@ class JobRepository:
         self.db.commit()
         self.db.refresh(job)
         return job
+
+    def commit(self) -> None:
+        """
+        Commit the current transaction.
+        """
+
+        self.db.commit()
+
+    def refresh(self, job: Job) -> None:
+        """
+        Refresh a job instance.
+        """
+
+        self.db.refresh(job)
 
     def delete(self, job: Job) -> None:
         """

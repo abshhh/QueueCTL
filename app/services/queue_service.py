@@ -15,10 +15,6 @@ class QueueService:
         job_id: str | None = None,
         max_retries: int = 3,
     ):
-        """
-        Create and persist a new job.
-        """
-
         if job_id is None:
             job_id = str(uuid.uuid4())
 
@@ -27,27 +23,31 @@ class QueueService:
         try:
             repository = JobRepository(db)
 
-            job = repository.create(
+            return repository.create(
                 job_id=job_id,
                 command=command,
                 max_retries=max_retries,
             )
 
-            return job
-
         finally:
             db.close()
 
     def list_jobs(self):
-        """
-        Return all jobs in the queue.
-        """
-
         db = SessionLocal()
 
         try:
             repository = JobRepository(db)
             return repository.list()
+
+        finally:
+            db.close()
+
+    def get_job(self, job_id: str):
+        db = SessionLocal()
+
+        try:
+            repository = JobRepository(db)
+            return repository.get(job_id)
 
         finally:
             db.close()
