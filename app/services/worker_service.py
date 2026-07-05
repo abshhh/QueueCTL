@@ -1,5 +1,5 @@
 import subprocess
-import time
+from datetime import datetime, timedelta
 from threading import Event
 
 from app.db.database import SessionLocal
@@ -8,13 +8,15 @@ from app.db.repository import JobRepository
 
 class WorkerService:
     """
-    Background worker that continuously polls the queue.
+    Continuously polls the queue and executes jobs.
     """
 
     def process_next_job(self):
+
         db = SessionLocal()
 
         try:
+
             repository = JobRepository(db)
 
             job = repository.get_next_pending()
@@ -36,32 +38,62 @@ class WorkerService:
             job.error = result.stderr
 
             if result.returncode == 0:
-                job.state = "completed"
-            else:
-                job.attempts += 1
 
-                if job.attempts >= job.max_retries:
-                    job.state = "dead"
-                else:
-                    job.state = "pending"
+                job.state = "completed"
+                job.next_run_at = datetime.utcnow()
+
+                repository.save(job)
+
+                return {
+                    "type": "success",
+                    "id": job.id,
+                    "command": job.command,
+                    "state": job.state,
+                    "attempts": job.attempts,
+                    "exit_code": result.returncode,
+                }
+
+            # ---------- FAILURE ----------
+
+            job.attempts += 1
+
+            if job.attempts >= job.max_retries:
+
+                job.state = "dead"
+
+                repository.save(job)
+
+                return {
+                    "type": "dead",
+                    "id": job.id,
+                    "command": job.command,
+                    "state": job.state,
+                    "attempts": job.attempts,
+                    "exit_code": result.returncode,
+                }
+
+            delay = 2 ** job.attempts
+
+            job.state = "pending"
+            job.next_run_at = datetime.utcnow() + timedelta(seconds=delay)
 
             repository.save(job)
 
             return {
+                "type": "retry",
                 "id": job.id,
                 "command": job.command,
                 "state": job.state,
                 "attempts": job.attempts,
+                "delay": delay,
                 "exit_code": result.returncode,
             }
 
         finally:
+
             db.close()
 
     def start(self, stop_event: Event):
-        """
-        Continuously poll the queue until shutdown.
-        """
 
         print("Worker started.")
 
@@ -71,11 +103,30 @@ class WorkerService:
 
             if result:
 
-                print(
-                    f"[Worker] {result['id']} "
-                    f"-> {result['state']} "
-                    f"(exit={result['exit_code']})"
-                )
+                if result["type"] == "success":
+
+                    print(
+                        f"✅ {result['id']} completed "
+                        f"(exit={result['exit_code']})"
+                    )
+
+                elif result["type"] == "retry":
+
+                    print(
+                        f"⚠️  {result['id']} failed "
+                        f"(attempt {result['attempts']})"
+                    )
+
+                    print(
+                        f"    ↳ Retrying in {result['delay']} second(s)..."
+                    )
+
+                elif result["type"] == "dead":
+
+                    print(
+                        f"❌ {result['id']} moved to DEAD "
+                        f"after {result['attempts']} attempts."
+                    )
 
             stop_event.wait(1)
 
