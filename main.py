@@ -5,6 +5,9 @@ from app.cli.worker import app as worker_app
 from app.cli.status import app as status_app
 from app.cli.dlq import app as dlq_app
 from app.cli.config import app as config_app
+from app.db.database import init_db
+
+
 
 app = typer.Typer(
     help="QueueCTL - Production Style Background Job Queue",
@@ -25,4 +28,5 @@ def version():
 
 
 if __name__ == "__main__":
+    init_db()
     app()
