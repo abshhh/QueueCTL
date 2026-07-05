@@ -35,14 +35,21 @@ class WorkerService:
 
             if result.returncode == 0:
                 job.state = "completed"
+
             else:
-                job.state = "failed"
+                job.attempts += 1
+
+                if job.attempts >= job.max_retries:
+                    job.state = "dead"
+                else:
+                    job.state = "pending"
 
             repository.save(job)
 
             return {
                 "id": job.id,
                 "state": job.state,
+                "attempts": job.attempts,
                 "exit_code": result.returncode,
             }
 

@@ -22,10 +22,12 @@ def start():
         console.print("[yellow]No pending jobs.[/yellow]")
         raise typer.Exit()
 
-    console.print("[bold green]✓ Job executed[/bold green]\n")
-    console.print(f"ID        : {result['id']}")
-    console.print(f"State     : {result['state']}")
-    console.print(f"Exit Code : {result['exit_code']}")
+    console.print("[bold green]Worker Finished[/bold green]\n")
+
+    console.print(f"Job ID     : {result['id']}")
+    console.print(f"State      : {result['state']}")
+    console.print(f"Attempts   : {result['attempts']}")
+    console.print(f"Exit Code  : {result['exit_code']}")
 
 
 @app.command()
