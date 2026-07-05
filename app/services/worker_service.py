@@ -29,20 +29,52 @@ class WorkerService:
             if job is None:
                 return None
 
-            result = subprocess.run(
-                job.command,
-                shell=True,
-                capture_output=True,
-                text=True,
-            )
+            try:
+                result = subprocess.run(
+                    job.command,
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                )
+
+            except Exception as e:
+
+                job.output = ""
+                job.error = str(e)
+                job.locked_by = None
+
+                job.attempts += 1
+
+                if job.attempts >= job.max_retries:
+                    job.state = "dead"
+                else:
+                    delay = (
+                        self.settings.get("backoff_base")
+                        ** job.attempts
+                    )
+                    job.state = "failed"
+                    job.next_run_at = (
+                        datetime.utcnow()
+                        + timedelta(seconds=delay)
+                    )
+
+                repository.save(job)
+
+                return {
+                    "type": "error",
+                    "id": job.id,
+                    "error": str(e),
+                }
 
             job.output = result.stdout
             job.error = result.stderr
             job.locked_by = None
 
             if result.returncode == 0:
+
                 job.state = "completed"
                 job.next_run_at = datetime.utcnow()
+
                 repository.save(job)
 
                 return {
@@ -57,8 +89,10 @@ class WorkerService:
             job.attempts += 1
 
             if job.attempts >= job.max_retries:
+
                 job.state = "dead"
                 job.next_run_at = datetime.utcnow()
+
                 repository.save(job)
 
                 return {
@@ -70,9 +104,17 @@ class WorkerService:
                     "exit_code": result.returncode,
                 }
 
-            delay = self.settings.get("backoff_base") ** job.attempts
+            delay = (
+                self.settings.get("backoff_base")
+                ** job.attempts
+            )
+
             job.state = "failed"
-            job.next_run_at = datetime.utcnow() + timedelta(seconds=delay)
+            job.next_run_at = (
+                datetime.utcnow()
+                + timedelta(seconds=delay)
+            )
+
             repository.save(job)
 
             return {
@@ -89,33 +131,62 @@ class WorkerService:
             db.close()
 
     def start(self, stop_event: Event):
+
         print("Worker started.")
 
         try:
-            while not stop_event.is_set() and not self.registry.stop_requested():
+
+            while (
+                not stop_event.is_set()
+                and not self.registry.stop_requested()
+            ):
+
                 self.registry.heartbeat(self.worker_id)
+
                 result = self.process_next_job()
 
                 if result:
+
                     if result["type"] == "success":
+
                         print(
                             f"[ok] {result['id']} completed "
                             f"(exit={result['exit_code']})"
                         )
+
                     elif result["type"] == "retry":
+
                         print(
                             f"[retry] {result['id']} failed "
                             f"(attempt {result['attempts']})"
                         )
-                        print(f"    retrying in {result['delay']} second(s)")
+
+                        print(
+                            f"    retrying in "
+                            f"{result['delay']} second(s)"
+                        )
+
                     elif result["type"] == "dead":
+
                         print(
                             f"[dead] {result['id']} moved to DLQ "
                             f"after {result['attempts']} attempts"
                         )
 
+                    elif result["type"] == "error":
+
+                        print(
+                            f"[error] {result['id']} "
+                            f"{result['error']}"
+                        )
+
                 self.settings.reload()
-                stop_event.wait(self.settings.get("poll_interval"))
+                stop_event.wait(
+                    self.settings.get("poll_interval")
+                )
+
         finally:
+
             self.registry.unregister(self.worker_id)
+
             print("Worker shutting down.")

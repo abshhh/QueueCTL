@@ -8,6 +8,7 @@ DEFAULT_CONFIG = {
     "poll_interval": 1,
     "max_retries": 3,
     "backoff_base": 2,
+    "job_timeout": 30,
 }
 
 
@@ -21,6 +22,17 @@ class Settings:
                 json.dump(DEFAULT_CONFIG, f, indent=4)
 
         self.reload()
+
+        updated = False
+
+        for key, value in DEFAULT_CONFIG.items():
+
+            if key not in self.config:
+                self.config[key] = value
+                updated = True
+
+        if updated:
+            self.save()
 
     def reload(self):
 

@@ -1,13 +1,10 @@
-import uuid
-
 from datetime import datetime
 
+from sqlalchemy import func, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.models import Job
-
-from sqlalchemy import func, text
 
 
 class JobRepository:
@@ -131,40 +128,79 @@ class JobRepository:
         self.db.delete(job)
         self.db.commit()
 
+
+    def stats(self):
+        rows = self.db.query(Job).all()
+
+        total = len(rows)
+
+        completed = sum(j.state == "completed" for j in rows)
+        pending = sum(j.state == "pending" for j in rows)
+        processing = sum(j.state == "processing" for j in rows)
+        failed = sum(j.state == "failed" for j in rows)
+        dead = sum(j.state == "dead" for j in rows)
+
+        if total:
+            average_retries = (
+                sum(j.attempts for j in rows) / total
+                )
+            max_retries_used = max(j.attempts for j in rows)
+        else:
+            average_retries = 0
+            max_retries_used = 0
+
+        return {
+        "total": total,
+        "pending": pending,
+        "processing": processing,
+        "completed": completed,
+        "failed": failed,
+        "dead": dead,
+        "average_retries": round(average_retries, 2),
+        "max_retries_used": max_retries_used,
+    }
+
+
     def claim_next_job(self, worker_id: str):
 
-        self.db.execute(text("BEGIN IMMEDIATE"))
+        try:
 
-        row = self.db.execute(
-        text(
-            """
-            UPDATE jobs
-            SET
-                state = 'processing',
-                locked_by = :worker,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE rowid = (
-                SELECT rowid
-                FROM jobs
-                WHERE
-                    state IN ('pending', 'failed')
-                    AND locked_by IS NULL
-                    AND next_run_at <= :now
-                ORDER BY created_at
-                LIMIT 1
-            )
-            RETURNING
-                id;
-            """
-        ),
-            {
-            "worker": worker_id,
-            "now": datetime.utcnow(),
-             },
-    ).mappings().first()
-        self.db.commit()
+            self.db.execute(text("BEGIN IMMEDIATE"))
 
-        if row is None:
-            return None
+            row = self.db.execute(
+                text(
+                    """
+                    UPDATE jobs
+                    SET
+                        state = 'processing',
+                        locked_by = :worker,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE rowid = (
+                        SELECT rowid
+                        FROM jobs
+                        WHERE
+                            state IN ('pending', 'failed')
+                            AND locked_by IS NULL
+                            AND next_run_at <= :now
+                        ORDER BY created_at
+                        LIMIT 1
+                    )
+                    RETURNING id;
+                    """
+                ),
+                {
+                    "worker": worker_id,
+                    "now": datetime.utcnow(),
+                },
+            ).mappings().first()
 
-        return self.get(row["id"])
+            self.db.commit()
+
+            if row is None:
+                return None
+
+            return self.get(row["id"])
+
+        except Exception:
+            self.db.rollback()
+            raise
