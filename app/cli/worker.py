@@ -1,3 +1,4 @@
+import threading
 import typer
 from rich.console import Console
 
@@ -8,26 +9,51 @@ app = typer.Typer(help="Worker management")
 console = Console()
 
 
-@app.command()
-def start():
-    """
-    Execute one pending job.
-    """
+def worker_loop(worker_id: int):
+    console.print(f"[cyan]Worker-{worker_id} started[/cyan]")
 
     worker = WorkerService()
+    worker.start()
 
-    result = worker.run_once()
 
-    if result is None:
-        console.print("[yellow]No pending jobs.[/yellow]")
-        raise typer.Exit()
+@app.command()
+def start(
+    count: int = typer.Option(
+        1,
+        "--count",
+        "-c",
+        help="Number of workers to start",
+    ),
+):
+    """
+    Start one or more workers.
+    """
 
-    console.print("[bold green]Worker Finished[/bold green]\n")
+    console.print(
+        f"[bold green]Starting {count} worker(s)...[/bold green]"
+    )
 
-    console.print(f"Job ID     : {result['id']}")
-    console.print(f"State      : {result['state']}")
-    console.print(f"Attempts   : {result['attempts']}")
-    console.print(f"Exit Code  : {result['exit_code']}")
+    threads = []
+
+    for i in range(count):
+
+        thread = threading.Thread(
+            target=worker_loop,
+            args=(i + 1,),
+            daemon=True,
+        )
+
+        thread.start()
+        threads.append(thread)
+
+    try:
+        for thread in threads:
+            thread.join()
+
+    except KeyboardInterrupt:
+        console.print(
+            "\n[yellow]Stopping all workers gracefully...[/yellow]"
+        )
 
 
 @app.command()
@@ -36,4 +62,6 @@ def stop():
     Placeholder for graceful shutdown.
     """
 
-    console.print("[yellow]Worker stopped.[/yellow]")
+    console.print(
+        "[yellow]Stop the running worker(s) using Ctrl+C.[/yellow]"
+    )

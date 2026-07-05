@@ -1,4 +1,5 @@
 import subprocess
+import time
 
 from app.db.database import SessionLocal
 from app.db.repository import JobRepository
@@ -6,10 +7,14 @@ from app.db.repository import JobRepository
 
 class WorkerService:
     """
-    Executes queued jobs.
+    Background worker that continuously polls the queue.
     """
 
-    def run_once(self):
+    def process_next_job(self):
+        """
+        Process the next available pending job.
+        """
+
         db = SessionLocal()
 
         try:
@@ -20,9 +25,11 @@ class WorkerService:
             if job is None:
                 return None
 
+            # Mark as processing
             job.state = "processing"
-            repository.commit()
+            repository.save(job)
 
+            # Execute command
             result = subprocess.run(
                 job.command,
                 shell=True,
@@ -48,6 +55,7 @@ class WorkerService:
 
             return {
                 "id": job.id,
+                "command": job.command,
                 "state": job.state,
                 "attempts": job.attempts,
                 "exit_code": result.returncode,
@@ -55,3 +63,29 @@ class WorkerService:
 
         finally:
             db.close()
+
+    def start(self):
+        """
+        Continuously poll the queue.
+        """
+
+        print("Worker started. Press Ctrl+C to stop.\n")
+
+        try:
+            while True:
+
+                result = self.process_next_job()
+
+                if result:
+
+                    print(
+                        f"[Worker] {result['id']} "
+                        f"-> {result['state']} "
+                        f"(exit={result['exit_code']})"
+                    )
+
+                time.sleep(1)
+
+        except KeyboardInterrupt:
+
+            print("\nGracefully shutting down worker...")
