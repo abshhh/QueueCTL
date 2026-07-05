@@ -7,9 +7,6 @@ from app.db.models import Job
 
 
 class JobRepository:
-    """
-    Handles all database operations related to jobs.
-    """
 
     def __init__(self, db: Session):
         self.db = db
@@ -57,10 +54,16 @@ class JobRepository:
             .all()
         )
 
+    def list_dead(self):
+
+        return (
+            self.db.query(Job)
+            .filter(Job.state == "dead")
+            .order_by(Job.created_at)
+            .all()
+        )
+
     def get_next_pending(self):
-        """
-        Return the oldest pending job that is ready to run.
-        """
 
         return (
             self.db.query(Job)
@@ -70,20 +73,25 @@ class JobRepository:
             .first()
         )
 
-    def save(self, job):
+    def retry_dead_job(self, job: Job):
+
+        job.state = "pending"
+        job.attempts = 0
+        job.output = None
+        job.error = None
+        job.next_run_at = datetime.utcnow()
 
         self.db.commit()
         self.db.refresh(job)
 
         return job
 
-    def commit(self):
+    def save(self, job):
 
         self.db.commit()
-
-    def refresh(self, job):
-
         self.db.refresh(job)
+
+        return job
 
     def delete(self, job):
 
