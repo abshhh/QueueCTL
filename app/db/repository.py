@@ -54,6 +54,27 @@ class JobRepository:
             .all()
         )
 
+    def list_by_state(self, state: str):
+
+        return (
+            self.db.query(Job)
+            .filter(Job.state == state)
+            .order_by(Job.created_at)
+            .all()
+        )
+
+    def summary(self):
+
+        jobs = self.list()
+
+        return {
+            "pending": sum(j.state == "pending" for j in jobs),
+            "processing": sum(j.state == "processing" for j in jobs),
+            "completed": sum(j.state == "completed" for j in jobs),
+            "dead": sum(j.state == "dead" for j in jobs),
+            "total": len(jobs),
+        }
+
     def list_dead(self):
 
         return (
@@ -73,7 +94,7 @@ class JobRepository:
             .first()
         )
 
-    def retry_dead_job(self, job: Job):
+    def retry_dead_job(self, job):
 
         job.state = "pending"
         job.attempts = 0

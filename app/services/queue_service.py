@@ -88,3 +88,22 @@ class QueueService:
 
         finally:
             db.close()
+
+    def list_jobs_by_state(self, state):
+
+        db = SessionLocal()
+        try:
+            return JobRepository(db).list_by_state(state)
+
+        finally:
+            db.close()
+
+    def get_summary(self):
+
+        db = SessionLocal()
+
+        try:
+            return JobRepository(db).summary()
+
+        finally:
+            db.close()
