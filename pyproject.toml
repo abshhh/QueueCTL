@@ -1,0 +1,17 @@
+[project]
+name = "queuectl"
+version = "0.1.0"
+description = "CLI-based persistent background job queue with retries and DLQ"
+readme = "README.MD"
+requires-python = ">=3.10"
+dependencies = [
+    "SQLAlchemy>=2.0",
+    "typer>=0.12",
+    "rich>=13.0",
+]
+
+[project.scripts]
+queuectl = "main:app"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

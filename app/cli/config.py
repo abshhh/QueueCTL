@@ -38,6 +38,7 @@ def set(
 ):
 
     settings.reload()
+    key = key.replace("-", "_")
 
     if key not in settings.config:
 

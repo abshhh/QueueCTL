@@ -23,8 +23,10 @@ def status():
 
     table.add_row("Pending", str(summary["pending"]))
     table.add_row("Processing", str(summary["processing"]))
+    table.add_row("Failed", str(summary["failed"]))
     table.add_row("Completed", str(summary["completed"]))
     table.add_row("Dead", str(summary["dead"]))
     table.add_row("Total", str(summary["total"]))
+    table.add_row("Active workers", str(summary["active_workers"]))
 
     console.print(table)

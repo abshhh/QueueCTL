@@ -1,9 +1,13 @@
+import uuid
+
 from datetime import datetime
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.models import Job
+
+from sqlalchemy import func, text
 
 
 class JobRepository:
@@ -65,14 +69,21 @@ class JobRepository:
 
     def summary(self):
 
-        jobs = self.list()
+        rows = (
+            self.db.query(Job.state, func.count(Job.id))
+            .group_by(Job.state)
+            .all()
+        )
+
+        counts = {state: count for state, count in rows}
 
         return {
-            "pending": sum(j.state == "pending" for j in jobs),
-            "processing": sum(j.state == "processing" for j in jobs),
-            "completed": sum(j.state == "completed" for j in jobs),
-            "dead": sum(j.state == "dead" for j in jobs),
-            "total": len(jobs),
+            "pending": counts.get("pending", 0),
+            "processing": counts.get("processing", 0),
+            "completed": counts.get("completed", 0),
+            "failed": counts.get("failed", 0),
+            "dead": counts.get("dead", 0),
+            "total": sum(counts.values()),
         }
 
     def list_dead(self):
@@ -98,6 +109,7 @@ class JobRepository:
 
         job.state = "pending"
         job.attempts = 0
+        job.locked_by = None
         job.output = None
         job.error = None
         job.next_run_at = datetime.utcnow()
@@ -118,3 +130,41 @@ class JobRepository:
 
         self.db.delete(job)
         self.db.commit()
+
+    def claim_next_job(self, worker_id: str):
+
+        self.db.execute(text("BEGIN IMMEDIATE"))
+
+        row = self.db.execute(
+        text(
+            """
+            UPDATE jobs
+            SET
+                state = 'processing',
+                locked_by = :worker,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE rowid = (
+                SELECT rowid
+                FROM jobs
+                WHERE
+                    state IN ('pending', 'failed')
+                    AND locked_by IS NULL
+                    AND next_run_at <= :now
+                ORDER BY created_at
+                LIMIT 1
+            )
+            RETURNING
+                id;
+            """
+        ),
+            {
+            "worker": worker_id,
+            "now": datetime.utcnow(),
+             },
+    ).mappings().first()
+        self.db.commit()
+
+        if row is None:
+            return None
+
+        return self.get(row["id"])

@@ -4,6 +4,7 @@ import typer
 from rich.console import Console
 
 from app.services.worker_service import WorkerService
+from app.services.worker_registry import WorkerRegistry
 
 app = typer.Typer(help="Worker management")
 
@@ -33,6 +34,12 @@ def start(
     """
     Start one or more workers.
     """
+
+    if count < 1:
+        console.print("[red]Worker count must be at least 1.[/red]")
+        raise typer.Exit(1)
+
+    WorkerRegistry().clear_stop()
 
     console.print(
         f"[bold green]Starting {count} worker(s)...[/bold green]"
@@ -78,9 +85,11 @@ def start(
 @app.command()
 def stop():
     """
-    Placeholder.
+    Ask running workers to stop after their current job.
     """
 
+    WorkerRegistry().request_stop()
+
     console.print(
-        "[yellow]Press Ctrl+C in the worker terminal to stop workers.[/yellow]"
+        "[yellow]Stop requested. Workers will exit after current jobs finish.[/yellow]"
     )

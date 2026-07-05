@@ -23,6 +23,13 @@ app.add_typer(config_app, name="config")
 app.add_typer(list_app, name="list")
 
 
+@app.callback()
+def main():
+    """Initialize QueueCTL before running a command."""
+
+    init_db()
+
+
 @app.command()
 def version():
     """Show QueueCTL version."""
@@ -30,5 +37,4 @@ def version():
 
 
 if __name__ == "__main__":
-    init_db()
     app()

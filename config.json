@@ -1,5 +1,5 @@
 {
     "poll_interval": 5,
-    "max_retries": 5,
+    "max_retries": 3,
     "backoff_base": 2
 }
