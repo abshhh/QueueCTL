@@ -44,6 +44,7 @@ def load_jobs():
         SELECT
             id,
             command,
+            priority,
             state,
             attempts,
             max_retries,
@@ -208,6 +209,7 @@ st.subheader("Jobs")
 display = filtered[
     [
         "id",
+        "priority",
         "state",
         "attempts",
         "max_retries",
@@ -233,6 +235,7 @@ for _, job in filtered.head(10).iterrows():
     with st.expander(job["id"]):
 
         st.write(f"**State:** {job['state']}")
+        st.write(f"**Priority:** {job['priority']}")
         st.write(f"**Attempts:** {job['attempts']}")
         st.write(f"**Command:**")
 
