@@ -80,39 +80,6 @@ queuectl/
 
 ---
 
-# Job Lifecycle
-
-```text
-Pending
-   │
-   ▼
-Processing
-   │
-   ├──────────────► Completed
-   │
-   ▼
-Failed
-   │
-Retries Left?
-   │
-   ├── Yes
-   │      │
-   │      ▼
-   │  Exponential Backoff
-   │      │
-   │      ▼
-   │   Pending
-   │
-   └── No
-          │
-          ▼
-        Dead Letter Queue
-          │
-          ▼
-     Manual Retry
-```
-
----
 
 # Installation
 
@@ -305,6 +272,8 @@ before claiming a scheduled job.
 
 # Monitoring Dashboard
 
+![Dashboard](docs/dashboard1.png)
+![Dashboard](docs/dashboard2.png)
 The Streamlit dashboard provides live visibility into the queue.
 
 Features include:
@@ -363,24 +332,6 @@ Possible enhancements include:
 - Prometheus metrics
 - Grafana dashboards
 - Kubernetes deployment
-
----
-
-# Demo
-
-A short demonstration should showcase:
-
-- Enqueueing jobs
-- Worker execution
-- Retry behaviour
-- Dead Letter Queue
-- Priority scheduling
-- Scheduled jobs
-- Dashboard monitoring
-
-**Demo Recording**
-
-> Add Google Drive link before submission.
 
 ---
 
