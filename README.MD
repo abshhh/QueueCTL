@@ -353,4 +353,6 @@ https://github.com/abshhh
 
 # License
 
-This project was developed as part of the Flam Backend Developer Internship Assignment.
+This project is released under the MIT License.
+
+See the `LICENSE` file for details.
