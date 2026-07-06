@@ -1,174 +1,405 @@
 # QueueCTL
 
-QueueCTL is a CLI-based persistent background job queue. It can enqueue shell
-commands, run one or more workers, retry failed jobs with exponential backoff,
-and move exhausted jobs into a Dead Letter Queue (DLQ).
+<p align="center">
 
-## Features
+![Python](https://img.shields.io/badge/Python-3.10+-blue)
+![SQLite](https://img.shields.io/badge/SQLite-Persistent-green)
+![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-ORM-red)
+![Typer](https://img.shields.io/badge/Typer-CLI-orange)
+![Streamlit](https://img.shields.io/badge/Streamlit-Dashboard-ff4b4b)
+
+**A production-style persistent background job queue with retries, dead letter queues, scheduling, priority queues, multiple workers, and live monitoring.**
+
+</p>
+
+---
+
+# Architecture
+
+![Architecture](docs/queuectl_arch.png)
+
+---
+
+# Overview
+
+QueueCTL is a lightweight production-inspired background job queue built entirely in Python.
+
+It allows users to enqueue shell commands, execute them asynchronously using one or more workers, retry failed jobs with exponential backoff, automatically move permanently failed jobs into a Dead Letter Queue (DLQ), schedule jobs for future execution, assign priorities to jobs, and monitor the queue through a live dashboard.
+
+All jobs are persisted in SQLite, ensuring they survive application restarts.
+
+---
+
+# Features
+
+## Core Features
 
 - Persistent SQLite job storage
-- CLI for enqueueing, listing, status, config, workers, and DLQ operations
-- Multiple worker threads with SQLite row claiming to avoid duplicate work
-- Automatic retry with exponential backoff
-- Dead Letter Queue for permanently failed jobs
-- Configurable retry count, backoff base, and polling interval
-- Minimal tests for enqueueing, worker processing, locking, retry, and DLQ
+- Multiple concurrent workers
+- Atomic job claiming
+- Retry mechanism with exponential backoff
+- Dead Letter Queue (DLQ)
+- Configurable polling interval
+- Configurable retry count
+- Graceful worker shutdown
+- Rich CLI interface
+- Live monitoring dashboard
 
-## Setup
+## Additional Features
 
-```powershell
+- Priority-based scheduling
+- Scheduled / delayed jobs
+- Job output & error logging
+- Queue statistics
+- Streamlit dashboard
+
+---
+
+# Project Structure
+
+```text
+queuectl/
+
+├── app/
+│   ├── cli/
+│   ├── core/
+│   ├── db/
+│   ├── services/
+│   └── dashboard/
+│
+├── data/
+│   ├── queue.db
+│   └── workers.json
+│
+├── tests/
+├── config.json
+├── dashboard.py
+├── main.py
+└── README.md
+```
+
+---
+
+# Job Lifecycle
+
+```text
+Pending
+   │
+   ▼
+Processing
+   │
+   ├──────────────► Completed
+   │
+   ▼
+Failed
+   │
+Retries Left?
+   │
+   ├── Yes
+   │      │
+   │      ▼
+   │  Exponential Backoff
+   │      │
+   │      ▼
+   │   Pending
+   │
+   └── No
+          │
+          ▼
+        Dead Letter Queue
+          │
+          ▼
+     Manual Retry
+```
+
+---
+
+# Installation
+
+```bash
+git clone <repository-url>
+
+cd queuectl
+
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+
+# Windows
+.venv\Scripts\activate
+
+# Linux/macOS
+source .venv/bin/activate
+
 pip install -r requirements.txt
 ```
 
-Run commands with:
+Run QueueCTL
 
-```powershell
+```bash
 python main.py --help
 ```
 
-Optional editable install:
+Launch dashboard
 
-```powershell
-pip install -e .
-queuectl --help
+```bash
+streamlit run dashboard.py
 ```
 
-## Usage
+---
 
-Enqueue a job using the assignment-style JSON payload:
+# CLI Examples
 
-```powershell
-python main.py enqueue '{"id":"job1","command":"echo hello"}'
+Enqueue
+
+```bash
+python main.py enqueue add --command "echo Hello"
 ```
 
-Alternative flag-based enqueue:
+Priority Job
 
-```powershell
-python main.py enqueue add --id job2 --command "python -c `"print('hello')`" --max-retries 3
+```bash
+python main.py enqueue add \
+    --command "echo Urgent" \
+    --priority 10
 ```
 
-Start three workers:
+Delayed Job
 
-```powershell
-python main.py worker start --count 3
+```bash
+python main.py enqueue add \
+    --command "echo Later" \
+    --delay 30
 ```
 
-Stop workers gracefully:
+Scheduled Job
 
-```powershell
-python main.py worker stop
+```bash
+python main.py enqueue add \
+    --command "echo Future" \
+    --run-at "2026-07-07T18:00:00"
 ```
 
-Show queue status:
+Start Workers
 
-```powershell
+```bash
+python main.py worker start --count 4
+```
+
+Status
+
+```bash
 python main.py status
 ```
 
-List all jobs:
+DLQ
 
-```powershell
-python main.py list
-```
-
-List jobs by state:
-
-```powershell
-python main.py list --state failed
-python main.py list --state dead
-```
-
-View DLQ jobs:
-
-```powershell
+```bash
 python main.py dlq list
-```
 
-Retry a DLQ job:
-
-```powershell
 python main.py dlq retry job1
 ```
 
-Show configuration:
+Configuration
 
-```powershell
+```bash
 python main.py config show
+
+python main.py config set max-retries 5
 ```
 
-Update configuration:
+---
 
-```powershell
-python main.py config set max-retries 3
-python main.py config set backoff_base 2
-python main.py config set poll_interval 1
+# Configuration
+
+Example
+
+```json
+{
+    "poll_interval": 5,
+    "max_retries": 3,
+    "backoff_base": 2
+}
 ```
 
-## Architecture
-
-Jobs are stored in SQLite at `data/queue.db`. Each job has an ID, command,
-state, attempt count, retry limit, timestamps, output, error, and lock owner.
-
-The job lifecycle is:
+Retry delay
 
 ```text
-pending -> processing -> completed
-pending -> processing -> failed -> processing -> dead
+delay = backoff_base ^ attempts
 ```
 
-When a worker polls, it claims one available `pending` or retryable `failed`
-job whose `next_run_at` has arrived. Claiming uses an atomic SQLite
-`UPDATE ... RETURNING` inside `BEGIN IMMEDIATE`, so concurrent workers do not
-pick the same job.
+---
 
-Workers run commands with the local shell. Exit code `0` marks a job
-`completed`. Non-zero exit codes increment `attempts`. If attempts are below
-`max_retries`, QueueCTL marks the job `failed` and schedules it using:
+# Worker Execution
+
+Each worker continuously:
+
+1. Polls the queue
+2. Atomically claims one eligible job
+3. Executes the command
+4. Marks success **or**
+5. Schedules retry **or**
+6. Moves the job to the Dead Letter Queue
+
+---
+
+# Atomic Job Claiming
+
+QueueCTL prevents duplicate execution using SQLite transactions.
+
+Each worker executes:
+
+```sql
+BEGIN IMMEDIATE
+```
+
+followed by a single
+
+```sql
+UPDATE ... RETURNING
+```
+
+statement.
+
+This guarantees only one worker can claim a job, even when multiple workers poll simultaneously.
+
+---
+
+# Priority Scheduling
+
+Jobs may be assigned a priority.
+
+Higher priority jobs are executed before lower priority jobs.
+
+```sql
+ORDER BY
+priority DESC,
+created_at ASC
+```
+
+---
+
+# Scheduled Jobs
+
+QueueCTL supports both delayed and absolute scheduling.
+
+Examples
+
+```bash
+--delay 60
+```
+
+or
+
+```bash
+--run-at "2026-07-07T15:30:00"
+```
+
+Workers automatically wait until
 
 ```text
-delay = backoff_base ^ attempts seconds
+next_run_at <= current_time
 ```
 
-Once attempts reach `max_retries`, the job moves to `dead` and appears in the
-DLQ.
+before claiming a scheduled job.
 
-Configuration lives in `config.json`, and worker heartbeats live in
-`data/workers.json` so `status` can report active workers.
+---
 
-## Testing
+# Monitoring Dashboard
 
-Run:
+The Streamlit dashboard provides live visibility into the queue.
 
-```powershell
-.\.venv\Scripts\python.exe -m pytest -q
+Features include:
+
+- Queue summary
+- Active workers
+- Queue statistics
+- Job table
+- State filtering
+- Job search
+- Output & error inspection
+- Auto refresh
+
+Launch using
+
+```bash
+streamlit run dashboard.py
 ```
 
-Current tests cover:
+---
 
-- Enqueueing a job
-- Worker completing a successful command
-- Failed job moving to DLQ
-- Retry scheduling with exponential backoff
-- DLQ retry
-- Duplicate-claim prevention for workers
+# Design Decisions
 
-## Assumptions and Trade-offs
+- SQLite chosen for simplicity and persistence
+- Repository pattern separates persistence from business logic
+- Atomic SQLite transactions prevent duplicate processing
+- Worker registry enables graceful shutdown and worker monitoring
+- Dashboard implemented separately using Streamlit
 
-- SQLite is used because it is embedded, persistent, easy to review, and
-  enough for a take-home queue assignment.
-- `worker stop` creates a local stop signal. Workers check it between jobs and
-  exit after finishing the job currently in progress.
-- Workers are threads inside one CLI process when `--count` is greater than 1.
-  Separate terminals can also run workers against the same SQLite database.
-- Commands are executed with `shell=True` to match the assignment examples
-  like `sleep 2` and `echo hello`. In a production multi-tenant system this
-  would need sandboxing and stricter validation.
-- Job output and errors are stored on the job row for easier debugging.
+---
 
-## Demo Recording
+# Trade-offs
 
-The assignment asks for a recorded CLI demo link in the README. Record a short
-demo showing enqueue, worker processing, retry/DLQ, and status, upload it to
-Drive, and paste the link here before submission.
+Current implementation intentionally favors simplicity over distributed scalability.
+
+Known trade-offs include:
+
+- SQLite instead of PostgreSQL/Redis
+- File-based worker registry
+- No job cancellation
+- No timeout enforcement
+- Dashboard is read-only
+
+---
+
+# Future Improvements
+
+Possible enhancements include:
+
+- Job timeout handling
+- REST API
+- Docker support
+- Redis backend
+- PostgreSQL support
+- Cron scheduling
+- Prometheus metrics
+- Grafana dashboards
+- Kubernetes deployment
+
+---
+
+# Demo
+
+A short demonstration should showcase:
+
+- Enqueueing jobs
+- Worker execution
+- Retry behaviour
+- Dead Letter Queue
+- Priority scheduling
+- Scheduled jobs
+- Dashboard monitoring
+
+**Demo Recording**
+
+> Add Google Drive link before submission.
+
+---
+
+# Author
+
+**Abir Shrivastava**
+
+B.E. Electronics & Instrumentation
+
+BITS Pilani Hyderabad Campus
+
+GitHub
+
+```
+https://github.com/abshhh
+```
+
+---
+
+# License
+
+This project was developed as part of the Flam Backend Developer Internship Assignment.
