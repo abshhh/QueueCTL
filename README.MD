@@ -84,9 +84,7 @@ queuectl/
 # Installation
 
 ```bash
-git clone <repository-url>
-
-cd queuectl
+git clone www.github.com/abshhh/QueueCTL
 
 python -m venv .venv
 
