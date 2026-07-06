@@ -17,6 +17,7 @@ class QueueService:
         command: str,
         job_id: str | None = None,
         max_retries: int | None = None,
+        priority : int = 0,
     ):
 
         if job_id is None:
@@ -35,6 +36,7 @@ class QueueService:
                 job_id=job_id,
                 command=command,
                 max_retries=max_retries,
+                priority = priority,
             )
 
         finally:

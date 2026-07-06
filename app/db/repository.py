@@ -17,12 +17,14 @@ class JobRepository:
         job_id: str,
         command: str,
         max_retries: int = 3,
+        priority : int = 0,
     ) -> Job:
 
         job = Job(
             id=job_id,
             command=command,
             max_retries=max_retries,
+            priority = priority,
         )
 
         try:
@@ -182,7 +184,7 @@ class JobRepository:
                             state IN ('pending', 'failed')
                             AND locked_by IS NULL
                             AND next_run_at <= :now
-                        ORDER BY created_at
+                        ORDER BY priority DESC, created_at ASC
                         LIMIT 1
                     )
                     RETURNING id;

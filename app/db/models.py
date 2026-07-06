@@ -31,6 +31,13 @@ class Job(Base):
         default=3,
     )
 
+    priority = Column(
+        Integer,
+        nullable=False,
+        default=0,
+        index=True,
+    )
+
     next_run_at = Column(
         DateTime,
         nullable=False,

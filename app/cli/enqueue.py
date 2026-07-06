@@ -25,6 +25,16 @@ def add(
         "--max-retries",
         help="Maximum retry attempts (defaults to config value)",
     ),
+
+    priority: int = typer.Option(
+        0,
+        "--priority",
+        "-p",
+        help="Higher values are processed first.",
+    ),
+
+
+
 ):
     """
     Add a new job to the queue.
@@ -37,6 +47,7 @@ def add(
             command=command,
             job_id=job_id,
             max_retries=max_retries,
+            priority = priority
         )
 
         console.print(
