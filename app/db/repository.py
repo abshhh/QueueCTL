@@ -18,6 +18,7 @@ class JobRepository:
         command: str,
         max_retries: int = 3,
         priority : int = 0,
+        next_run_at: datetime | None = None,
     ) -> Job:
 
         job = Job(
@@ -25,6 +26,7 @@ class JobRepository:
             command=command,
             max_retries=max_retries,
             priority = priority,
+            next_run_at = next_run_at or datetime.utcnow(),
         )
 
         try:
